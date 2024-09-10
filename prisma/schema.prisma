@@ -1,39 +1,77 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "mongodb"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user AppUser @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         AppUser  @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@map("sessions")
 }
 
 model AppUser {
-  id          String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String  @unique
-  email       String  @unique
-  password    String?
-  displayName String?
-  photoURL    String?
+  userId        String    @id @default(cuid()) @map("id")
+  displayName   String?   @map("name")
+  email         String?   @unique
+  emailVerified DateTime? @map("email_verified")
+  photoURL      String?   @map("image")
 
-  meta          AppUserMetadata?
-  settings      AppUserSettings?
-  Orders        UserOrders[]
-  Subscriptions Subscription[]
+  role String? @default("admin")
 
-  @@map("appUser")
+  accounts     Account[]
+  sessions     Session[]
+  meta         AppUserMetadata?
+  settings     AppUserSettings?
+  orders       UserOrders[]
+  Subscription Subscription[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
 }
 
 model AppUserMetadata {
-  appUserMetadataId String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String  @unique
-  referralCode      String?
-  referredBy        String?
+  userMetadataId String  @id @default(cuid()) @map("_id")
+  userId         String  @unique
+  referralCode   String?
+  referredBy     String?
 
   paidStatus String? // "free" | "premium"
 
@@ -42,23 +80,22 @@ model AppUserMetadata {
 
   appUser AppUser @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
-  @@map("appUserMetadata")
+  @@map("userMetadata")
 }
 
 model AppUserSettings {
-  appUserSettingsId String @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String @unique
+  userSettingsId String @id @default(cuid()) @map("_id")
+  userId         String @unique
 
   showNotifications Boolean @default(true)
 
   appUser AppUser @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
-  @@map("appUserSettings")
+  @@map("userSettings")
 }
 
 model CartItems {
-  id       String @id @default(auto()) @map("_id") @db.ObjectId
-  name     String
+  id       String @id @default(cuid()) @map("_id")
   currency String
   price    Float
 
@@ -68,25 +105,25 @@ model CartItems {
 }
 
 model UserOrders {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  id         String   @id @default(cuid()) @map("_id")
   orderId    String   @unique
   userId     String
-  cartItemId String   @db.ObjectId
+  cartItemId String
   quantity   Int
   total      Float
   status     String   @default("pending") // pending, completed, cancelled
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  appUser  AppUser   @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  appUser     AppUser   @relation(fields: [userId], references: [userId], onDelete: Cascade)
   cartItem CartItems @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
 
   @@map("userOrders")
 }
 
 model Subscription {
-  id                String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String?
+  id                String    @id @default(cuid()) @map("_id")
+  userId            String    @unique
   planId            String
   subscriptionId    String    @unique
   startDate         DateTime
@@ -95,14 +132,14 @@ model Subscription {
   lastPaymentDate   DateTime?
   lastPaymentAmount Float?
 
-  appUser  AppUser?  @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  appUser     AppUser   @relation(fields: [userId], references: [userId], onDelete: Cascade)
   Payments Payment[]
 
   @@map("subscriptions")
 }
 
 model Payment {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  id             String   @id @default(cuid()) @map("_id")
   paymentId      String   @unique
   subscriptionId String
   paidAmount     Float

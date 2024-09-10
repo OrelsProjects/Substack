@@ -7,21 +7,20 @@ import {
   selectAuth,
   setUser as setUserAction,
 } from "../../lib/features/auth/authSlice";
-import { usePathname } from "next/navigation";
-import Loading from "../../components/ui/loading";
+import { usePathname, useRouter } from "next/navigation";
+import Loading from "@/components/ui/loading";
 import { setUserEventTracker } from "../../eventTracker";
 import { setUserLogger } from "../../logger";
 import { useSession } from "next-auth/react";
 import AppUser from "../../models/appUser";
 import { useAppDispatch } from "../../lib/hooks/redux";
-import { useCustomRouter } from "../../lib/hooks/useCustomRouter";
 
 export default function AuthProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const router = useCustomRouter();
+  const router = useRouter();
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const { user: currentUser } = useSelector(selectAuth);
@@ -32,6 +31,7 @@ export default function AuthProvider({
     email?: string | null;
     image?: string | null;
     userId?: string | null;
+    role?: string | null;
     meta: {
       referralCode?: string | null;
     };
@@ -42,6 +42,7 @@ export default function AuthProvider({
         email: user?.email || "",
         photoURL: user?.image || null,
         userId: user?.userId || "",
+        // role: user?.role || "",
         settings: {
           showNotifications: true,
         },
@@ -60,6 +61,7 @@ export default function AuthProvider({
     switch (status) {
       case "authenticated":
         setUser(session.user);
+
         break;
       case "loading":
         break;
@@ -77,6 +79,8 @@ export default function AuthProvider({
   }, [currentUser]);
 
   useEffect(() => {
+    console.log("status", status);
+    console.log("pathname", pathname);
     if (status === "loading") return;
     if (status === "authenticated") {
       if (
@@ -84,11 +88,17 @@ export default function AuthProvider({
         pathname.includes("register") ||
         pathname === "/"
       ) {
-        router.push("/plans", { preserveQuery: true });
+        router.push("/home");
       }
     } else {
-      if (!pathname.includes("login") && !pathname.includes("register")) {
-        router.push("/", { preserveQuery: true });
+      if (
+        !pathname.includes("/login") &&
+        !pathname.includes("/register") &&
+        pathname !== "/"
+        && !pathname.includes("/privacy")
+        && !pathname.includes("/tos")
+      ) {
+        router.push("/login");
       }
     }
   }, [status]);
