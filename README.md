@@ -11,3 +11,4 @@
 1. Initialize your bucket
 2. Grab the name from the files table's header (gs://...)
 ![alt text](image.png)# Substack
+# Substack
