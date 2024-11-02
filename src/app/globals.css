@@ -170,4 +170,16 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  .success-text-color-gradient {
+    @apply bg-gradient-to-l from-green-500 to-green-400 text-green-400/60 bg-clip-text;
+  }
+
+  .warning-text-color-gradient {
+    @apply bg-gradient-to-l from-yellow-600 to-yellow-500 text-yellow-500/60 bg-clip-text;
+  }
+
+  .error-text-color-gradient {
+    @apply bg-gradient-to-l from-red-700 to-red-600 text-red-600/60 bg-clip-text;
+  }
 }

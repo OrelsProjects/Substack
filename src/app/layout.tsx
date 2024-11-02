@@ -12,9 +12,9 @@ import { initLogger } from "../logger";
 import ClientTrackersProvider from "./providers/ClientTrackersProvider";
 import Loading from "../components/ui/loading";
 
-const APP_NAME = "Saas template";
-const APP_DEFAULT_TITLE = "Saas template";
-const APP_TITLE_TEMPLATE = "%s - Saas template";
+const APP_NAME = "Hook Generator";
+const APP_DEFAULT_TITLE = "HookGen";
+const APP_TITLE_TEMPLATE = "%s - HookGen";
 const APP_DESCRIPTION = "Build your SaaS easily!";
 
 interface RootLayoutProps {

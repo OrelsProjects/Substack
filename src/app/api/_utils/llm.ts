@@ -1,39 +1,66 @@
 import OpenAI from "openai";
-import SubstackNote from "../../../models/subtackNote";
+import SubstackNote, {
+  RecommendationNoHandler,
+  SubstackNoteContentMatrixRecommendation,
+} from "@/models/substackNote";
+import { basicPrompt, contentMatrixPrompt } from "../_consts/propmpts";
 
-export const processNotes = async (notes: SubstackNote[]) => {
+type Models = "gpt-4o" | "content-matrix";
+
+const runLLM = async (model: Models, prompt: string) => {
   const openai = new OpenAI();
-  const best20Notes = notes
-    .filter(note => note.text.length > 0)
-    .sort((a, b) => b.likes + b.comments - a.likes - a.comments)
-    .slice(0, 20);
-
-  const notesText = best20Notes
-    .map(
-      note =>
-        `Note: ${note.text}\nLikes: ${note.likes}\nComments: ${note.comments}\nRestacks: ${note.restacks}`,
-    )
-    .join("\n");
-  if (!notesText) {
-    return;
-  }
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model,
     messages: [
       {
         role: "user",
-        content: `According to the notes, please figure out which of the notes are the best performing, by likes and comments and then, give me 10 ideas for new notes based on the existing notes. Please return it in a format like this :
-            {
-            recommendations: [
-            {
-            idea: string,
-                hook: string,
-                content: string,
-                }
-        ]
-            }. ONLY the json object so I can use JSON.parse() on it. \n\n ${notesText}`,
+        content: prompt,
       },
     ],
   });
   return completion.choices[0].message.content;
+};
+
+const parseRecommendations = (
+  text: string | null,
+  model: Models,
+): RecommendationNoHandler[] => {
+  const cleanJsonData = text
+    ?.replace(/\`\`\`json\n/, "")
+    .replace(/\n\`\`\`/, "");
+
+  // Parse the clean JSON data into an object
+  const obj = JSON.parse(cleanJsonData || "[]");
+
+  switch (model) {
+    case "gpt-4o":
+      return obj.recommendations as RecommendationNoHandler[];
+    case "content-matrix":
+      return obj.recommendations as SubstackNoteContentMatrixRecommendation[];
+    default:
+      return [];
+  }
+};
+
+export const processNotes = async (
+  notes: SubstackNote[],
+  model: Models = "gpt-4o",
+): Promise<RecommendationNoHandler[]> => {
+  let prompt = "";
+  switch (model) {
+    case "gpt-4o":
+      prompt = basicPrompt(notes);
+      break;
+    case "content-matrix":
+      prompt = contentMatrixPrompt(notes);
+      break;
+    default:
+      return [];
+  }
+  if (!prompt) {
+    return [];
+  }
+
+  const response = await runLLM("gpt-4o", prompt);
+  return parseRecommendations(response, model);
 };

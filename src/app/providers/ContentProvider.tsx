@@ -49,7 +49,7 @@ const ContentProvider: React.FC<ContentProviderProps> = ({ children }) => {
           maxHeight: contentHeight,
         }}
       >
-        <NavigationBar ref={bottomBarRef} />
+        {/* <NavigationBar ref={bottomBarRef} /> */}
 
         <ThemeProvider>
           <div className="relative z-[51]">

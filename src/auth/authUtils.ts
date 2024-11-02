@@ -38,6 +38,7 @@ export const getSession = async ({
       settings: true,
     },
   });
+
   if (session?.user) {
     if (session?.user.image !== userInDB?.photoURL) {
       await prisma.appUser.update({

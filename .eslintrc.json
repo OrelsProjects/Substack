@@ -1,9 +1,22 @@
 {
-  "extends": "next/core-web-vitals",
+  "extends": [
+    "next/core-web-vitals",
+    "plugin: import/errors",
+    "prettier",
+    "next"
+  ],
   "plugins": ["react-hooks"],
   "rules": {
     "react-hooks/rules-of-hooks": 0,
     "react-hooks/exhaustive-deps": 0,
     "@next/next/no-img-element": 0
+  },
+  "settings": {
+    "import/resolver": {
+      "alias": {
+        "extensions": [".ts", ".tsx"],
+        "map": [["@", "."]]
+      }
+    }
   }
 }

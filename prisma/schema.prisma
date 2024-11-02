@@ -48,12 +48,14 @@ model AppUser {
 
   role String? @default("admin")
 
-  accounts     Account[]
-  sessions     Session[]
-  meta         AppUserMetadata?
-  settings     AppUserSettings?
-  orders       UserOrders[]
-  Subscription Subscription[]
+  accounts        Account[]
+  sessions        Session[]
+  meta            AppUserMetadata?
+  settings        AppUserSettings?
+  orders          UserOrders[]
+  Subscription    Subscription[]
+  Recommendations Recommendations[]
+  UserNotes       UserNotes[]
 
   @@map("users")
 }
@@ -68,7 +70,7 @@ model VerificationToken {
 }
 
 model AppUserMetadata {
-  userMetadataId String  @id @default(cuid()) @map("_id")
+  userMetadataId String  @id @default(cuid())
   userId         String  @unique
   referralCode   String?
   referredBy     String?
@@ -84,7 +86,7 @@ model AppUserMetadata {
 }
 
 model AppUserSettings {
-  userSettingsId String @id @default(cuid()) @map("_id")
+  userSettingsId String @id @default(cuid())
   userId         String @unique
 
   showNotifications Boolean @default(true)
@@ -94,8 +96,46 @@ model AppUserSettings {
   @@map("userSettings")
 }
 
+model UserNotes {
+  id String @id @default(cuid())
+
+  text              String
+  likes             Int
+  comments          Int
+  restacks          Int
+  isRestack         Boolean
+  image             String?
+  hasOpenGraphImage Boolean
+  publishDate       DateTime?
+
+  userId String
+
+  appUser         AppUser           @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  Recommendations Recommendations[]
+
+  @@map("userNotes")
+}
+
+model Recommendations {
+  id String @id @default(cuid())
+
+  idea    String
+  hook    String
+  content String
+  rating  Float
+  handler String
+
+  inspiredBy String?
+  userId     String
+
+  userNote UserNotes? @relation(fields: [inspiredBy], references: [id])
+  appUser  AppUser    @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@map("recommendations")
+}
+
 model CartItems {
-  id       String @id @default(cuid()) @map("_id")
+  id       String @id @default(cuid())
   currency String
   price    Float
 
@@ -105,7 +145,7 @@ model CartItems {
 }
 
 model UserOrders {
-  id         String   @id @default(cuid()) @map("_id")
+  id         String   @id @default(cuid())
   orderId    String   @unique
   userId     String
   cartItemId String
@@ -115,14 +155,14 @@ model UserOrders {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  appUser     AppUser   @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  appUser  AppUser   @relation(fields: [userId], references: [userId], onDelete: Cascade)
   cartItem CartItems @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
 
   @@map("userOrders")
 }
 
 model Subscription {
-  id                String    @id @default(cuid()) @map("_id")
+  id                String    @id @default(cuid())
   userId            String    @unique
   planId            String
   subscriptionId    String    @unique
@@ -132,14 +172,14 @@ model Subscription {
   lastPaymentDate   DateTime?
   lastPaymentAmount Float?
 
-  appUser     AppUser   @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  appUser  AppUser   @relation(fields: [userId], references: [userId], onDelete: Cascade)
   Payments Payment[]
 
   @@map("subscriptions")
 }
 
 model Payment {
-  id             String   @id @default(cuid()) @map("_id")
+  id             String   @id @default(cuid())
   paymentId      String   @unique
   subscriptionId String
   paidAmount     Float
@@ -149,4 +189,18 @@ model Payment {
   subscription Subscription @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: Cascade)
 
   @@map("payments")
+}
+
+model LinkedInPosts {
+  id String @id @default(cuid())
+
+  content     String
+  likes       Int
+  comments    Int
+  shares      Int
+  image       String?
+  hasVideo    Boolean
+  hasCarousel Boolean
+
+  @@map("linkedInPosts")
 }
