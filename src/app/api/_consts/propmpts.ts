@@ -22,15 +22,15 @@ const notesToText = (notes: SubstackNote[]) => {
 
 export const basicPrompt = (notes: SubstackNote[]) => {
   const notesText = notesToText(notes);
-  return `According to the notes, please figure out which of the notes are the best performing, by likes and comments and then, give me 10 ideas for new notes based on the existing notes.
+  return `According to the posts, please figure out which of the posts are the best performing, by likes and comments and then, give me 20 ideas for new notes based on the existing notes.
         Rate these ideas by how likely they are to perform well with a number between 0-1, float.
-        Make sure the ideas are relevant to the notes and the audience and are not too similar to the existing notes.
+        Make sure the ideas are relevant to the posts and the audience and are not too similar to the existing notes.
         
         For every recommendation, write why you decided that this is the best idea,
         by adding "inspiredBy" you'll see down below, which is is the id of the note that inspired this idea.
 
-        Make the ideas and the text as close to the notes style as possible. Don't use the same text, but make sure to write in the same style as the inspiration note.
-        Also make sure the ideas are not too similar to the existing notes.
+        Make the ideas and the text as close to the posts style as possible. Don't use the same text, but make sure to write in the same style as the inspiration note.
+        Also make sure the ideas are not too similar to the existing posts.
 
         Don't use the words embrace, foster.
 
@@ -51,10 +51,11 @@ export const basicPrompt = (notes: SubstackNote[]) => {
 export const contentMatrixPrompt = (notes: SubstackNote[]) => {
   const notesText = notesToText(notes);
 
-  return `According to the notes, please figure out which of the notes are the best performing by likes and comments. Then, using the content matrix, give me 10 ideas for new notes based on the existing notes.
-  
+  return `According to the posts, please figure out which of the posts are the best performing by likes and comments. Then, using the content matrix, give me 20 ideas for new notes based on the existing notes.
   Use the content matrix to select different types ${topics} and structures ${structures} for the ideas.
   
+  Also, figure out which of the topics and structures are the most popular among the posts and populate the ideas with those.
+
   For each recommendation, include the following fields:
   
   - idea: The main idea or topic of the note.
@@ -66,11 +67,11 @@ export const contentMatrixPrompt = (notes: SubstackNote[]) => {
   - structure: The structure or format of the content (e.g., Listicle, Personal Story).
   - type: The type of content as per the content matrix.
   
-  Make sure the ideas are relevant to the notes and the audience and are not too similar to the existing notes.
+  Make sure the ideas are relevant to the posts and the audience and are not too similar to the existing posts.
   
-  Make the ideas and the text as close to the notes' style as possible. Don't use the same text, but ensure you write in the same style as the inspiration note.
+  Make the ideas and the text as close to the posts' style as possible. Don't use the same text, but ensure you write in the same style as the inspiration note.
   
-  Also, ensure the ideas are not too similar to the existing notes.
+  Also, ensure the ideas are not too similar to the existing posts.
   
   Don't use the words "embrace" or "foster."
   

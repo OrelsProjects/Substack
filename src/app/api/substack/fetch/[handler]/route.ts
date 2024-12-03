@@ -4,54 +4,58 @@ import { authOptions } from "@/auth/authOptions";
 import loggerServer from "@/loggerServer";
 import scrapeSubstackData from "@/app/api/_utils/substack";
 import { processNotes } from "../../../_utils/llm";
-import { SubstackNoteRecommendationWithNote } from "@/models/substackNote";
+import {
+  RecommendationNoHandlerContentMatrix,
+  SubstackNoteRecommendationWithNote,
+} from "@/models/substackNote";
 import prisma from "../../../_db/db";
+import { Recommendations, UserNotes } from "@prisma/client";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { handler: string } },
-): Promise<
-  NextResponse<SubstackNoteRecommendationWithNote[] | { error: string }>
-> {
+) {
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    // const userRecommendations = await prisma.recommendations.findMany({
-    //   where: {
-    //     userId: session.user.userId,
-    //   },
-    //   include: {
-    //     userNote: true,
-    //   },
-    // });
+    const userRecommendations = await prisma.recommendations.findMany({
+      where: {
+        userId: session.user.userId,
+      },
+      include: {
+        userNote: true,
+      },
+    });
 
-    // if (userRecommendations.length > 0) {
-    //   return NextResponse.json(userRecommendations, { status: 200 });
-    // }
+    if (userRecommendations.length > 0) {
+      return NextResponse.json(userRecommendations, { status: 200 });
+    }
 
-    let userNotes: any[] = [];
-    // await prisma.userNotes.findMany({
-    //   where: {
-    //     userId: session.user.userId,
-    //   },
-    // });
+    let userNotes: UserNotes[] = await prisma.userNotes.findMany({
+      where: {
+        userId: session.user.userId,
+      },
+    });
 
     if (userNotes.length === 0) {
       const scrapedNotes = await scrapeSubstackData(params.handler, "all");
-      userNotes = scrapedNotes.map(note => ({
+      const newUserNotes = scrapedNotes.map(note => ({
         ...note,
         userId: session.user.userId,
       }));
 
-      const userNotesNoId = userNotes.map(note => {
+      const userNotesNoId = newUserNotes.map(note => {
         const { id, ...rest } = note;
         return rest;
       });
 
       await prisma.userNotes.createMany({
-        data: userNotesNoId,
+        data: userNotesNoId.map(note => ({
+          ...note,
+          userId: session.user.userId,
+        })),
       });
 
       userNotes = await prisma.userNotes.findMany({
@@ -61,18 +65,35 @@ export async function GET(
       });
     }
 
-    const response = await processNotes(userNotes);
+    if (userNotes.length === 0) {
+      return NextResponse.json({ error: "No notes found" }, { status: 404 });
+    }
 
-    const recommendations = response.map(recommendation => ({
-      ...recommendation,
-      handler: params.handler,
-    }));
+    let response = (await processNotes(
+      userNotes,
+      "content-matrix",
+    )) as RecommendationNoHandlerContentMatrix[];
+
+    const recommendationsWithoutInspiredBy = response.filter(recommendation =>
+      userNotes.map(it => it.id).includes(recommendation.inspiredBy || ""),
+    );
+
+    const recommendations: Omit<Recommendations, "id">[] = response.map(
+      recommendation => ({
+        userId: session.user.userId,
+        idea: recommendation.idea,
+        hook: recommendation.hook,
+        content: recommendation.content,
+        rating: recommendation.rating,
+        structure: recommendation.structure.name,
+        topic: recommendation.topic as string,
+        inspiredBy: recommendation.inspiredBy || null,
+        handler: params.handler,
+      }),
+    );
 
     await prisma.recommendations.createMany({
-      data: recommendations.map(recommendation => ({
-        ...recommendation,
-        userId: session.user.userId,
-      })),
+      data: recommendations,
     });
 
     const recommendationsWithNotes = recommendations.map(recommendation => ({

@@ -98,7 +98,7 @@ export default function AuthProvider({
         && !pathname.includes("/privacy")
         && !pathname.includes("/tos")
       ) {
-        router.push("/login");
+        // router.push("/login");
       }
     }
   }, [status]);

@@ -110,6 +110,9 @@ model UserNotes {
 
   userId String
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
   appUser         AppUser           @relation(fields: [userId], references: [userId], onDelete: Cascade)
   Recommendations Recommendations[]
 
@@ -119,11 +122,13 @@ model UserNotes {
 model Recommendations {
   id String @id @default(cuid())
 
-  idea    String
-  hook    String
-  content String
-  rating  Float
-  handler String
+  idea      String
+  hook      String
+  content   String
+  rating    Float
+  handler   String
+  structure String? // Note the '?' indicating it's optional
+  topic     String?
 
   inspiredBy String?
   userId     String
@@ -197,10 +202,14 @@ model LinkedInPosts {
   content     String
   likes       Int
   comments    Int
-  shares      Int
+  date        String?
+  reposts     Int
   image       String?
   hasVideo    Boolean
   hasCarousel Boolean
+  isRepost    Boolean?
+
+  url String
 
   @@map("linkedInPosts")
 }

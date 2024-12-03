@@ -182,4 +182,26 @@
   .error-text-color-gradient {
     @apply bg-gradient-to-l from-red-700 to-red-600 text-red-600/60 bg-clip-text;
   }
+
+  /* md screen */
+  @media (min-width: 768px) {
+    /* Size */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    /* Track */
+    ::-webkit-scrollbar-track,
+    .scrollbar-visible::-webkit-scrollbar-track {
+      border-radius: 999999px;
+      background: hsla(215.4, 16.3%, 46.9%, 0.6);
+    }
+
+    /* Handle */
+    ::-webkit-scrollbar-thumb,
+    .scrollbar-visible::-webkit-scrollbar-thumb {
+      background: hsla(0, 0%, 100%, 0.4);
+      border-radius: 9999px;
+    }
+  }
 }

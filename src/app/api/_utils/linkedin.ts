@@ -1,4 +1,8 @@
+import { LinkedInPosts } from "@prisma/client";
 import puppeteer, { Browser, Page } from "puppeteer";
+
+type ScrapedPosts = Omit<LinkedInPosts, "id" | "url">;
+export type PostsNoId = Omit<LinkedInPosts, "id">;
 
 // Reuse the login function from the previous code
 async function login(
@@ -24,7 +28,8 @@ async function login(
 export async function initLinkedInLogin(
   username: string,
   password: string,
-): Promise<any[]> {
+  name: string,
+): Promise<PostsNoId[]> {
   const browser: Browser = await puppeteer.launch({
     headless: false, // Set to false for debugging purposes
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -38,20 +43,23 @@ export async function initLinkedInLogin(
   // Perform login
   await login(page, username, password);
 
+  const url = `https://www.linkedin.com/in/${name}/recent-activity/all/`;
+
   // Navigate to the LinkedIn recent activity page
-  await page.goto(
-    "https://www.linkedin.com/in/ali-abdaal/recent-activity/all/",
-  );
+  await page.goto(url);
   await waitForPage(3000); // Wait for 3 seconds
 
   // Scrape LinkedIn posts data
-  const postsData = await scrapeLinkedInPosts(page);
+  const postsData: ScrapedPosts[] = await scrapeLinkedInPosts(page);
 
   console.log(postsData);
 
   // Optionally, close the browser after the operations are complete
   await browser.close();
-  return postsData;
+  return postsData.map(post => ({
+    ...post,
+    url,
+  }));
 }
 
 // Function to wait for a specified time (in milliseconds)
@@ -62,173 +70,184 @@ async function waitForPage(time: number): Promise<void> {
 // Updated function to scrape LinkedIn posts based on the new logic
 async function scrapeLinkedInPosts(page: Page): Promise<any[]> {
   const postsData: any[] = [];
+  const minScrollOffset = 100;
+  const maxPosts = 300;
+  let scrollOffset = 100; // Adjust scroll offset as needed
+  const maxTimesFoundEmptyText = 6;
+  let whileLoopFlag = true;
   let lastPostIndex = 0;
-  const scrollOffset = 800; // Adjust scroll offset as needed
-  const maxTimesFoundEmptyText = 3;
   let timesFoundEmptyText = 0;
+  let scrollBackCount = 0;
+  const maxScrollBacks = 10;
 
-  while (true) {
-    // Scrape posts starting from lastPostIndex until text == "" is found
-    const { posts, foundEmptyText } = await scrapePostsUntilEmptyText(
-      page,
-      lastPostIndex,
-    );
-    postsData.push(...posts);
-    lastPostIndex += posts.length;
-
-    if (foundEmptyText) {
-      timesFoundEmptyText++; // Increment the counter
-      if (timesFoundEmptyText >= maxTimesFoundEmptyText) {
-        // If we've found empty text the maximum number of times, break
+  try {
+    while (whileLoopFlag) {
+      if (postsData.length >= maxPosts) {
         break;
       }
+      console.log("Current postsData length: ", postsData.length);
 
-      // Check if we are at the bottom of the page
-      const isAtBottom = await page.evaluate(() => {
-        return (
-          window.innerHeight + window.scrollY >= document.body.scrollHeight - 2
-        );
-      });
+      // Scrape posts starting from lastPostIndex until text == "" is found
+      const { posts, needScrollBack } = await scrapePostsUntilEmptyText(
+        page,
+        lastPostIndex,
+      );
 
-      if (isAtBottom) {
-        // Try clicking the "Load more" button
-        const loadMoreButtonExists = await page.evaluate(() => {
-          const loadMoreButton = document.querySelector(
-            "button.scaffold-finite-scroll__load-button",
-          ) as HTMLElement;
-          if (loadMoreButton) {
-            loadMoreButton.click();
-            return true;
-          } else {
-            return false;
-          }
-        });
-
-        if (!loadMoreButtonExists) {
-          // No more posts to load, finish
-          break;
-        } else {
-          timesFoundEmptyText = 0; // Reset the counter after loading more posts
-          // Wait for new posts to load
+      if (needScrollBack) {
+        if (scrollBackCount < maxScrollBacks) {
+          await scrollByAmount(page, -500);
           await waitForPage(2000);
+          scrollBackCount++;
+          continue;
+        } else {
+          scrollBackCount = 0;
+          // Reached max scrollbacks, proceed without further scroll back
+          console.log("Reached max scroll back attempts, proceeding...");
         }
-      } else {
-        // Scroll down by offset amount, wait 2 seconds, and continue
+      }
+
+      postsData.push(...posts);
+      scrollOffset = posts.length * minScrollOffset;
+      scrollOffset =
+        scrollOffset < minScrollOffset ? minScrollOffset : scrollOffset;
+      lastPostIndex += posts.length;
+
+      if (posts.length === 0) {
+        timesFoundEmptyText++; // Increment the counter
+        if (timesFoundEmptyText >= maxTimesFoundEmptyText) {
+          whileLoopFlag = false;
+        }
+        if (timesFoundEmptyText >= 3) {
+          // Try clicking the "Show more results" button
+          const showMoreButtonClicked = await page.evaluate(() => {
+            const showMoreButton = document.querySelector(
+              "button.scaffold-finite-scroll__load-button",
+            ) as HTMLElement;
+            if (showMoreButton) {
+              showMoreButton.click();
+              return true;
+            } else {
+              return false;
+            }
+          });
+
+          if (showMoreButtonClicked) {
+            timesFoundEmptyText = 0; // Reset the counter after clicking the button
+            await waitForPage(3000); // Wait for new posts to load
+            await scrollByAmount(page, 600); // Scroll down
+            continue;
+          }
+        }
         await scrollByAmount(page, scrollOffset);
         await waitForPage(2000);
+      } else {
+        // Reset the counter
+        timesFoundEmptyText = 0;
       }
-    } else {
-      // No empty text found, continue scraping
-      timesFoundEmptyText = 0; // Reset the counter
     }
+  } catch (error) {
+    console.error(error);
+  } finally {
+    return postsData;
   }
-
-  return postsData;
 }
-
-// Function to scrape posts until an empty text post is found
 async function scrapePostsUntilEmptyText(
   page: Page,
   startIndex: number,
-): Promise<{ posts: any[]; foundEmptyText: boolean }> {
-  // Wait for posts to be present
-  await page.waitForSelector(
-    "li.profile-creator-shared-feed-update__container",
-    { visible: true },
-  );
+): Promise<{
+  posts: ScrapedPosts[];
+  foundEmptyText: boolean;
+  needScrollBack?: boolean;
+}> {
+  await page.waitForSelector('div.feed-shared-update-v2[role="region"][data-urn]', { visible: true });
 
-  // Evaluate the posts on the page
   return page.evaluate(startIndex => {
     const posts = Array.from(
-      document.querySelectorAll(
-        "li.profile-creator-shared-feed-update__container",
-      ),
+      document.querySelectorAll('div.feed-shared-update-v2[role="region"][data-urn]')
     ).slice(startIndex);
-    const scrapedPosts: any[] = [];
     let foundEmptyText = false;
 
+    const scrapedPosts: ScrapedPosts[] = [];
+
     for (const post of posts) {
-      // Ignore reposted content
-      const isRepost = post
-        .querySelector(
-          ".update-components-header__text-wrapper span.update-components-header__text-view",
-        )
-        ?.textContent?.includes("reposted this");
-      if (isRepost) continue;
+      // Check if the post is a repost
+      let isRepost = post.querySelector(".update-components-mini-update-v2") !== null;
 
       // Extract text content
-      const textElement = post.querySelector(
-        ".update-components-text .break-words",
-      );
+      const textElement = post.querySelector(".update-components-text .break-words");
       const text = textElement ? textElement.textContent?.trim() : "";
 
-      // If text is empty, set flag and break
-      if (text === "") {
+      if (!text) {
         foundEmptyText = true;
         break;
       }
 
-      // Extract likes count
-      const likesElement = post.querySelector(
-        "span.social-details-social-counts__reactions-count",
+      // Extract date
+      const dateElement = post.querySelector(
+        "a.update-components-actor__sub-description-link > span.update-components-actor__sub-description"
       );
+      let date = "";
+      if (dateElement) {
+        const dateText = dateElement.textContent?.trim() || "";
+        date = dateText.split("•")[0].trim();
+      }
+
+      // Extract likes count
+      const likesElement = post.querySelector("span.social-details-social-counts__reactions-count");
       const likes = likesElement
-        ? parseInt(likesElement.textContent?.trim() || "0", 10)
+        ? parseInt(likesElement.textContent?.trim().replace(/,/g, "") || "0", 10)
         : 0;
 
       // Extract comments count
-      const commentsElement = post.querySelector(
-        'li.social-details-social-counts__comments button span[aria-hidden="true"]',
-      );
-      const comments = commentsElement
-        ? parseInt(
-            commentsElement.textContent?.replace(" comments", "").trim() || "0",
-            10,
-          )
-        : 0;
+      const commentsButton = post.querySelector("li.social-details-social-counts__comments button");
+      const commentsText = commentsButton ? commentsButton.textContent?.trim() || "" : "";
+      const commentsMatch = commentsText.match(/\d+/);
+      const comments = commentsMatch ? parseInt(commentsMatch[0], 10) : 0;
 
       // Extract repost count
-      const repostsElement = post.querySelector(
-        'li.social-details-social-counts__item.social-details-social-counts__item--right-aligned button span[aria-hidden="true"]',
-      );
-      const reposts = repostsElement
-        ? parseInt(
-            repostsElement.textContent?.replace(" reposts", "").trim() || "0",
-            10,
-          )
-        : 0;
-
-      // Extract image URL if present
-      let imageUrl: string | null = null;
-      const imageElement = post.querySelector(
-        ".lazy-image img",
-      ) as any;
-      if (imageElement) {
-        imageUrl = imageElement.src;
+      let reposts = 0;
+      const countItems = post.querySelectorAll("li.social-details-social-counts__item");
+      for (const item of countItems) {
+        const button = item.querySelector("button");
+        const span = button?.querySelector("span");
+        const text = span?.textContent?.trim().toLowerCase() || "";
+        if (text.includes("repost")) {
+          const match = text.match(/(\d+)/);
+          if (match) {
+            reposts = parseInt(match[1], 10);
+          }
+          break;
+        }
       }
 
-      // Check if the post has a video
-      const hasVideo = !!post.querySelector(
-        ".update-components-linkedin-video",
-      );
+      // Extract image URL
+      let imageUrl: string | null = null;
+      const imageElement = post.querySelector("img.update-components-image__image") as HTMLImageElement | null;
+      if (imageElement) {
+        imageUrl = imageElement.getAttribute("data-delayed-url") || imageElement.src;
+      }
 
-      // Check if the post has a carousel
+      // Check for video and carousel
+      const hasVideo = !!post.querySelector(".update-components-linkedin-video");
       const hasCarousel = !!post.querySelector(".carousel-track");
 
       scrapedPosts.push({
-        text,
+        content: text || "",
+        date,
         likes,
         comments,
         reposts,
-        image: imageUrl,
+        image: imageUrl || null,
         hasVideo,
         hasCarousel,
+        isRepost,
       });
     }
 
     return { posts: scrapedPosts, foundEmptyText };
   }, startIndex);
 }
+
 
 // Function to scroll down by a specific amount
 async function scrollByAmount(page: Page, amount: number): Promise<void> {

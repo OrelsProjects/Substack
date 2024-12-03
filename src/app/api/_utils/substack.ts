@@ -1,9 +1,10 @@
 import puppeteer, { Page } from "puppeteer";
 import SubstackNote from "@/models/substackNote";
 
-const SEE_MORE_BUTTON_SELECTOR = ".pencraft._seeMoreText_1c7tu_178 a";
-
 export type MaxNotes = number | "all";
+
+// Use a more general selector for the "See more..." buttons
+const SEE_MORE_BUTTON_SELECTOR = 'a[href="#see-more"]';
 
 function parseDateString(dateString: string): Date | null {
   try {
@@ -45,9 +46,80 @@ function parseDateString(dateString: string): Date | null {
 }
 
 async function countNotes(page: Page): Promise<number> {
-  return await page.evaluate(
-    () => document.querySelectorAll(".pencraft._feedItem_1c7tu_110").length,
-  );
+  return await page.evaluate(() => {
+    const elements = Array.from(
+      document.querySelectorAll('div[class*="_feedItem_"]'),
+    );
+    return elements.length;
+  });
+}
+
+async function extractData(page: Page) {
+  const data = await page.evaluate(() => {
+    const items = Array.from(
+      document.querySelectorAll('div[class*="_feedItem_"]'),
+    ) as HTMLElement[];
+
+    return items.map((item, index) => {
+      const isRestack = item.innerText.toLowerCase().includes("restacked");
+
+      const publishDateElement = item.querySelector("a[title]");
+      const publishDateString = publishDateElement
+        ? publishDateElement.getAttribute("title")
+        : null;
+
+      // Try to get the image within the post attachment, if any
+      const imageElement =
+        item.querySelector('a[href*="substack.com"] picture img') ||
+        item.querySelector("picture img");
+      const image = imageElement ? imageElement.getAttribute("src") : null;
+
+      // Check if there's an Open Graph image (in the post attachment)
+      const hasOpenGraphImage = !!item.querySelector(
+        'a[href*="substack.com"] picture img',
+      );
+
+      const textElement = item.querySelector('div[class*="_feedCommentBody_"]');
+      const text = textElement?.textContent
+        ? textElement.textContent.trim()
+        : "";
+
+      const likesElement = item.querySelector(
+        'button[class*="_like_"] ._digit_',
+      );
+      const likes = likesElement?.textContent
+        ? parseInt(likesElement.textContent.trim() || "0", 10)
+        : 0;
+
+      const commentsElement = item.querySelector(
+        'button[class*="_reply_"] ._digit_',
+      );
+      const comments = commentsElement?.textContent
+        ? parseInt(commentsElement.textContent.trim() || "0", 10)
+        : 0;
+
+      const restacksElement = item.querySelector(
+        'button[class*="_restack_"] ._digit_',
+      );
+      const restacks = restacksElement?.textContent
+        ? parseInt(restacksElement.textContent.trim() || "0", 10)
+        : 0;
+
+      return {
+        text,
+        isRestack,
+        publishDate: publishDateString,
+        image,
+        hasOpenGraphImage,
+        likes,
+        comments,
+        restacks,
+        id: index.toString(),
+      };
+    });
+  });
+
+  return data;
 }
 
 async function scrapeSubstackData(
@@ -64,24 +136,6 @@ async function scrapeSubstackData(
   const page = await browser.newPage();
   await page.goto(url, { waitUntil: "networkidle2" });
 
-  // Click the "Notes" tab
-  await page.evaluate(() => {
-    const buttons = Array.from(document.querySelectorAll("button"));
-    const notesButton = buttons.find(button =>
-      button.innerText.includes("Notes"),
-    );
-    if (notesButton) {
-      notesButton.click();
-    }
-  });
-
-  // Wait for the content to load
-  await page.waitForSelector(".pencraft._feedItem_1c7tu_110", {
-    visible: true,
-  });
-
-  await waitForPage(2000);
-
   // Check if there are at least maxNotes notes; if not, keep scrolling and fetching
   await checkAndFetchMoreNotes(page, maxNotes);
 
@@ -89,80 +143,23 @@ async function scrapeSubstackData(
   await expandSeeMoreButtons(page);
 
   // Scrape data
-  const data = await page.evaluate(() => {
-    const items = Array.from(
-      document.querySelectorAll(".pencraft._feedItem_1c7tu_110"),
-    );
-    return items.map(item => {
-      const isRestack = !!item
-        .querySelector("svg._contextIcon_1c7tu_598")
-        ?.nextElementSibling?.textContent?.toLocaleLowerCase()
-        ?.includes("restacked");
-
-      const publishDateString = item
-        .querySelector(
-          ".pencraft.pc-reset._color-secondary_3axfk_186._decoration-hover-underline_3axfk_298._reset_3axfk_1 > a._link_1ixw5_1",
-        )
-        ?.getAttribute("title");
-
-      // if has <picture> tag and inside it an image with class="_img_16u6n_1 pencraft pc-reset"
-      const image =
-        item
-          .querySelector(
-            "._image_1dmry_1 picture img._img_16u6n_1.pencraft.pc-reset",
-          )
-          ?.getAttribute("src") || null; // Fetch img src or return null if not found
-
-      const hasOpenGraphImage = !!item.querySelector(
-        "a._post_1c7tu_608 picture img._img_16u6n_1._postImage_1c7tu_619.pencraft.pc-reset",
-      );
-
-      const text =
-        item.querySelector(".pencraft._feedCommentBody_1c7tu_300")
-          ?.textContent || "";
-      const likes = parseInt(
-        item.querySelector(".pencraft._digit_1c7tu_687")?.textContent || "0",
-        10,
-      );
-      const comments = parseInt(
-        item.querySelector(".pencraft._reply_1c7tu_264 ._digit_1c7tu_687")
-          ?.textContent || "0",
-        10,
-      );
-      const restacks = parseInt(
-        item.querySelector(".pencraft._restack_1c7tu_777 ._digit_1c7tu_687")
-          ?.textContent || "0",
-        10,
-      );
-
-      return {
-        text,
-        isRestack,
-        publishDate: publishDateString,
-        image,
-        hasOpenGraphImage,
-        likes,
-        comments,
-        restacks,
-        id: "0",
-      };
-    });
-  });
+  const data = await extractData(page);
 
   await browser.close();
 
-  // loop over data with for i (number) and set id
-  const notes = data.map((note, i) => ({
-    ...note,
-    id: `${i}`,
-    publishDate: note.publishDate ? parseDateString(note.publishDate) : null,
-  }));
+  // Parse publishDate strings to Date objects
+  const notes = data
+    .filter(note => note.text !== "")
+    .map(note => ({
+      ...note,
+      publishDate: note.publishDate ? parseDateString(note.publishDate) : null,
+    }));
 
   return notes;
 }
 
 async function expandSeeMoreButtons(page: Page) {
-  const selector = SEE_MORE_BUTTON_SELECTOR;
+  const selector = 'a[href="#see-more"]';
   let seeMoreExists = (await page.$(selector)) !== null;
   while (seeMoreExists) {
     await page.$$eval(selector, links =>
@@ -174,28 +171,31 @@ async function expandSeeMoreButtons(page: Page) {
 }
 
 async function checkAndFetchMoreNotes(page: Page, maxNotes: MaxNotes) {
-  let noteCount = await countNotes(page);
-  const maxNotesCount = maxNotes === "all" ? 100 : maxNotes;
+  let noteCountNotEmpty = 0;
+  const maxNotesCount = maxNotes === "all" ? 10 : maxNotes;
 
   let previousNoteCount = 0;
   let attemptsWithoutNewNotes = 0;
   const maxAttempts = 3;
 
-  while (noteCount < maxNotesCount && attemptsWithoutNewNotes < maxAttempts) {
-    if (noteCount === previousNoteCount) {
+  while (
+    noteCountNotEmpty < maxNotesCount &&
+    attemptsWithoutNewNotes < maxAttempts
+  ) {
+    if (noteCountNotEmpty === previousNoteCount) {
       attemptsWithoutNewNotes++;
     } else {
       attemptsWithoutNewNotes = 0; // Reset if new notes are loaded
     }
 
-    previousNoteCount = noteCount;
+    previousNoteCount = noteCountNotEmpty;
+    const data = await extractData(page);
+    const dataNoEmpty = data.filter(note => note.text !== "");
+    noteCountNotEmpty = dataNoEmpty.length;
 
     await scrollToEnd(page);
     await waitForPage(3000); // wait for content to load
     await expandSeeMoreButtons(page); // expand any new "See more..." buttons
-
-    // Recalculate note count
-    noteCount = await countNotes(page);
   }
 }
 

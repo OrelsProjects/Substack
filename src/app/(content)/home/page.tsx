@@ -1,50 +1,51 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
-import { SubstackNoteRecommendationWithNote } from "@/models/substackNote";
+import { SubstackNoteContentMatrixRecommendation } from "@/models/substackNote";
 import axios from "axios";
 import { toast } from "react-toastify";
 import Loading from "@/components/ui/loading";
-import Note from "./Note";
+import SubstackNoteContentMatrix from "../../../components/substackNoteContentMatrixTable";
 import { Button } from "../../../components/ui/button";
 
 export default function Home() {
   const loadingRef = useRef(false);
   const [loading, setLoading] = React.useState(false);
   const [recommendations, setRecommendations] = React.useState<
-    SubstackNoteRecommendationWithNote[]
+    SubstackNoteContentMatrixRecommendation[]
   >([]);
   const [currentRecommendation, setCurrentRecommendation] =
-    React.useState<SubstackNoteRecommendationWithNote | null>(null);
+    React.useState<SubstackNoteContentMatrixRecommendation | null>(null);
   const [recommendationsUsed, setRecommendationsUsed] = React.useState<
-    SubstackNoteRecommendationWithNote[]
+    SubstackNoteContentMatrixRecommendation[]
   >([]);
 
   const [loadingGenerate, setLoadingGenerate] = React.useState(false);
 
   useEffect(() => {
-    if (loadingRef.current) {
-      return;
-    }
-    loadingRef.current = true;
-    setLoading(true);
-    axios
-      .get<SubstackNoteRecommendationWithNote[]>(
-        "/api/substack/fetch/" + "orelzilberman",
-      )
-      .then(response => {
-        setRecommendations(response.data);
-        if (response.data.length > 0) {
-          setCurrentRecommendation(response.data[0]);
-        }
-      })
-      .catch(error => {
-        toast.error("Failed to fetch recommendations", { data: error.message });
-      })
-      .finally(() => {
-        loadingRef.current = false;
-        setLoading(false);
-      });
+    // if (loadingRef.current) {
+    //   return;
+    // }
+    // loadingRef.current = true;
+    // setLoading(true);
+    // axios
+    //   .get<SubstackNoteContentMatrixRecommendation[]>(
+    //     "/api/substack/fetch/" + "orelzilberman",
+    //   )
+    //   .then(response => {
+    //     debugger;
+    //     setRecommendations(response.data);
+    //     if (response.data.length > 0) {
+    //       setCurrentRecommendation(response.data[0]);
+    //     }
+    //   })
+    //   .catch(error => {
+    //     toast.error("Failed to fetch recommendations", { data: error.message });
+    //   })
+    //   .finally(() => {
+    //     loadingRef.current = false;
+    //     setLoading(false);
+    //   });
   }, []);
 
   const orderedRecommendations = useMemo(() => {
@@ -90,7 +91,10 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-4">
-      {handler && <h2 className="text-3xl font-semibold">@{handler}</h2>}
+      {/* <SubstackNoteContentMatrix
+        recommendations={orderedRecommendations || []}
+      /> */}
+      {/* {handler && <h2 className="text-3xl font-semibold">@{handler}</h2>}
       {currentRecommendation && (
         <div className="flex flex-col items-center gap-4">
           <Note
@@ -105,7 +109,7 @@ export default function Home() {
             Generate New
           </Button>
         </div>
-      )}
+      )}*/}
       <Button
         className="bg-blue-500"
         onClick={fetchLinkedin}

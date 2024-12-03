@@ -38,3 +38,8 @@ export type RecommendationNoHandler = Omit<
   SubstackNoteRecommendation,
   "handler"
 >;
+
+export type RecommendationNoHandlerContentMatrix = Omit<
+  SubstackNoteContentMatrixRecommendation,
+  "handler"
+>;

@@ -1,11 +1,13 @@
 import OpenAI from "openai";
 import SubstackNote, {
   RecommendationNoHandler,
+  RecommendationNoHandlerContentMatrix,
   SubstackNoteContentMatrixRecommendation,
 } from "@/models/substackNote";
 import { basicPrompt, contentMatrixPrompt } from "../_consts/propmpts";
 
-type Models = "gpt-4o" | "content-matrix";
+
+type Models = "gpt-4o" | "gpt-4o-mini" | "content-matrix";
 
 const runLLM = async (model: Models, prompt: string) => {
   const openai = new OpenAI();
@@ -45,7 +47,9 @@ const parseRecommendations = (
 export const processNotes = async (
   notes: SubstackNote[],
   model: Models = "gpt-4o",
-): Promise<RecommendationNoHandler[]> => {
+): Promise<
+  RecommendationNoHandler[] | RecommendationNoHandlerContentMatrix[]
+> => {
   let prompt = "";
   switch (model) {
     case "gpt-4o":
@@ -61,6 +65,6 @@ export const processNotes = async (
     return [];
   }
 
-  const response = await runLLM("gpt-4o", prompt);
+  const response = await runLLM("gpt-4o-mini", prompt);
   return parseRecommendations(response, model);
 };
