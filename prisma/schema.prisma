@@ -205,6 +205,7 @@ model LinkedInPosts {
   date        String?
   reposts     Int
   image       String?
+  videoUrl    String?
   hasVideo    Boolean
   hasCarousel Boolean
   isRepost    Boolean?

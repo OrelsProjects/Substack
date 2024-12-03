@@ -7,7 +7,8 @@ import { processNotes } from "../../_utils/llm";
 import { SubstackNoteRecommendationWithNote } from "@/models/substackNote";
 import prisma from "../../_db/db";
 import { initLinkedInLogin, PostsNoId } from "../../_utils/linkedin";
-import linkedInPosts from "@/noah.json"
+import linkedInPosts from "@/noah.json";
+import fs from "fs";
 
 export async function GET(
   req: NextRequest,
@@ -24,8 +25,27 @@ export async function GET(
     const linkedInPosts: PostsNoId[] = await initLinkedInLogin(
       username,
       password,
-      "alexhormozi",
+      [
+        "justinwelsh",
+        "garyvaynerchuk",
+        "shettyjay",
+        "alicjasmin",
+        "ali-abdaal",
+        "jamesclear",
+        "tomhuntio",
+        "timferriss",
+        "gregmckeown",
+        "brenebrown",
+        "sarablakely27",
+      ],
     );
+
+    // Write posts to a posts.json file
+    try {
+      fs.writeFileSync("posts.json", JSON.stringify(linkedInPosts, null, 2));
+    } catch (error) {
+      console.error(error);
+    }
 
     // clear posts with empty content and duplicated content
     const linkedInPostsFiltered = linkedInPosts.filter(
